@@ -370,7 +370,9 @@ def training(dataset, opt, pipe, testing_iterations, saving_iterations, checkpoi
                     #         gaussians.prune_points(is_floater)
                     size_threshold = 20 if iteration > opt.opacity_reset_interval else None
                     val_9 = 0.02 if iteration > 20000 else 0.005        ###
-                    gaussians.densify_and_prune(opt.densify_grad_threshold, val_9, scene.cameras_extent, size_threshold, radii)
+                    stricter_grad_threshold = max(opt.densify_grad_threshold, 0.0004)
+                    
+                    gaussians.densify_and_prune(stricter_grad_threshold, val_9, scene.cameras_extent, size_threshold, radii)
                 
                 if iteration % opt.opacity_reset_interval == 0 or (dataset.white_background and iteration == opt.densify_from_iter):
                     gaussians.reset_opacity()
