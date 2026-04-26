@@ -160,7 +160,7 @@ def training(dataset, opt, pipe, testing_iterations, saving_iterations, checkpoi
 
         bg = torch.rand((3), device="cuda") if opt.random_background else background
 
-        if iteration < opt.iterations:
+        if iteration < opt.densify_until_iter:
             render_cam = get_perturbed_cam(viewpoint_cam, translation_std=0.001) 
         else:
             render_cam = viewpoint_cam
@@ -227,12 +227,27 @@ def training(dataset, opt, pipe, testing_iterations, saving_iterations, checkpoi
             ssim_lr = ssim(image_lr_rendered, gt_image_lr)
         
         loss_lr = (1.0 - opt.lambda_dssim) * Ll1_lr + opt.lambda_dssim * (1.0 - ssim_lr)
-        
-        # 7. Total Weighted Loss (using your existing scheduling)
-        progress = iteration / opt.iterations
-        curr_lambda_lr = 1.0 * (1.0 - progress) + 0.1 * progress  # From 1.0 down to 0.1
-        curr_lambda_hr = 0.2 * (1.0 - progress) + 1.0 * progress  # From 0.2 up to 1.0
+
+
+        if iteration <= opt.densify_until_iter:
+            # Phase 1: Geometry Building (Pure LR)
+            curr_lambda_lr = 1.0
+            curr_lambda_hr = 0.0 
+        else:
+            # Phase 2: Texture/Detail Fine-Tuning (Mix HR and LR)
+            # Calculate progress purely for the post-densification phase
+            fine_tune_progress = (iteration - opt.densify_until_iter) / (opt.iterations - opt.densify_until_iter)
+            
+            # Keep a small LR anchor, but ramp up HR to add details
+            curr_lambda_lr = 0.5 * (1.0 - fine_tune_progress) + 0.1 * fine_tune_progress
+            curr_lambda_hr = 0.5 * fine_tune_progress + 1.0 * fine_tune_progress 
+
         loss = (curr_lambda_hr * loss_hr) + (curr_lambda_lr * loss_lr)
+        # # 7. Total Weighted Loss (using your existing scheduling)
+        # progress = iteration / opt.iterations
+        # curr_lambda_lr = 1.0 * (1.0 - progress) + 0.1 * progress  # From 1.0 down to 0.1
+        # curr_lambda_hr = 0.2 * (1.0 - progress) + 1.0 * progress  # From 0.2 up to 1.0
+        # loss = (curr_lambda_hr * loss_hr) + (curr_lambda_lr * loss_lr)
 
 
         ######################################################################################################
